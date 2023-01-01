@@ -100,6 +100,13 @@ class StockStore {
 
     const data = yield fetchCandles(params);
     this.candles = new Map(data.map((d) => [d.candle_date_time_kst, d]));
+    this.startTime = moment(moment.now())
+      .subtract(10, "minute")
+      .startOf("minute")
+      .format("YYYY-MM-DD[T]HH:mm:ss");
+    this.endTime = moment(moment.now())
+      .startOf("minute")
+      .format("YYYY-MM-DD[T]HH:mm:ss");
   }
 
   *fetchCandlesToFront(): Generator<Promise<Candle[]>, void, Candle[]> {

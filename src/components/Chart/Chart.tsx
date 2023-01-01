@@ -39,7 +39,7 @@ const initXScale = () => {
 };
 
 const drawXaxis = (
-  context: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
   xScale: d3.ScaleTime<number, number, never>,
   Y: number,
   xExtent: [number, number]
@@ -48,33 +48,33 @@ const drawXaxis = (
   const xTicks = xScale.ticks(TICK_COUNT_X), // You may choose tick counts. ex: xScale.ticks(20)
     xTickFormat = xScale.tickFormat(); // you may choose the format. ex: xScale.tickFormat(tickCount, ".0s")
 
-  context.strokeStyle = "black";
+  ctx.strokeStyle = "black";
 
-  context.beginPath();
+  ctx.beginPath();
   xTicks.forEach((d) => {
-    context.moveTo(xScale(d), Y);
-    context.lineTo(xScale(d), Y + TICK_SIZE);
+    ctx.moveTo(xScale(d), Y);
+    ctx.lineTo(xScale(d), Y + TICK_SIZE);
   });
-  context.stroke();
+  ctx.stroke();
 
-  context.beginPath();
-  context.moveTo(startX, Y + TICK_SIZE);
-  context.lineTo(startX, Y);
-  context.lineTo(endX, Y);
-  context.lineTo(endX, Y + TICK_SIZE);
-  context.stroke();
+  ctx.beginPath();
+  ctx.moveTo(startX, Y + TICK_SIZE);
+  ctx.lineTo(startX, Y);
+  ctx.lineTo(endX, Y);
+  ctx.lineTo(endX, Y + TICK_SIZE);
+  ctx.stroke();
 
-  context.textAlign = "center";
-  context.textBaseline = "top";
-  context.fillStyle = "black";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "black";
   xTicks.forEach((d) => {
-    context.beginPath();
-    context.fillText(xTickFormat(d), xScale(d), Y + TICK_SIZE);
+    ctx.beginPath();
+    ctx.fillText(xTickFormat(d), xScale(d), Y + TICK_SIZE);
   });
 };
 
 const drawYaxis = (
-  context: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
   yScale: d3.ScaleLinear<number, number, never>,
   X: number,
   yExtent: [number, number]
@@ -84,32 +84,32 @@ const drawYaxis = (
   const yTicks = yScale.ticks(TICK_COUNT_Y),
     yTickFormat = yScale.tickFormat();
 
-  context.strokeStyle = "black";
-  context.beginPath();
+  ctx.strokeStyle = "black";
+  ctx.beginPath();
   yTicks.forEach((d) => {
-    context.moveTo(X, yScale(d));
-    context.lineTo(X - TICK_SIZE, yScale(d));
+    ctx.moveTo(X, yScale(d));
+    ctx.lineTo(X - TICK_SIZE, yScale(d));
   });
-  context.stroke();
+  ctx.stroke();
 
-  context.beginPath();
-  context.moveTo(X - TICK_SIZE, startY);
-  context.lineTo(X, startY);
-  context.lineTo(X, endY);
-  context.lineTo(X - TICK_SIZE, endY);
-  context.stroke();
+  ctx.beginPath();
+  ctx.moveTo(X - TICK_SIZE, startY);
+  ctx.lineTo(X, startY);
+  ctx.lineTo(X, endY);
+  ctx.lineTo(X - TICK_SIZE, endY);
+  ctx.stroke();
 
-  context.textAlign = "right";
-  context.textBaseline = "middle";
-  context.fillStyle = "black";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "black";
   yTicks.forEach((d) => {
-    context.beginPath();
-    context.fillText(yTickFormat(d), X - TICK_SIZE - TICK_PADDING, yScale(d));
+    ctx.beginPath();
+    ctx.fillText(yTickFormat(d), X - TICK_SIZE - TICK_PADDING, yScale(d));
   });
 };
 
 const drawTail = (
-  context: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
   candles: Map<string, Candle>,
   xScale: d3.ScaleTime<number, number, never>,
   yScale: d3.ScaleLinear<number, number, never>
@@ -122,22 +122,22 @@ const drawTail = (
       );
     })
     .forEach((d) => {
-      context.beginPath();
-      context.strokeStyle = getColor(d);
-      context.moveTo(
+      ctx.beginPath();
+      ctx.strokeStyle = getColor(d);
+      ctx.moveTo(
         xScale(Date.parse(d.candle_date_time_kst)),
         yScale(d.high_price)
       );
-      context.lineTo(
+      ctx.lineTo(
         xScale(Date.parse(d.candle_date_time_kst)),
         yScale(d.low_price)
       );
-      context.stroke();
+      ctx.stroke();
     });
 };
 
 const drawBar = (
-  context: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
   candles: Map<string, Candle>,
   xScale: d3.ScaleTime<number, number, never>,
   yScale: d3.ScaleLinear<number, number, never>,
@@ -152,21 +152,21 @@ const drawBar = (
       );
     })
     .forEach((d) => {
-      context.beginPath();
-      context.fillStyle = getColor(d);
-      context.fillRect(
+      ctx.beginPath();
+      ctx.fillStyle = getColor(d);
+      ctx.fillRect(
         xScale(Date.parse(d.candle_date_time_kst)) - width / 2,
         yScale(Math.max(d.opening_price, d.trade_price)),
         width,
         yScale(Math.min(d.opening_price, d.trade_price)) -
           yScale(Math.max(d.opening_price, d.trade_price))
       );
-      context.stroke();
+      ctx.stroke();
     });
 };
 
 const drawBase = (
-  context: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
   candles: Map<string, Candle>,
   xScale: d3.ScaleTime<number, number, never>,
   yScale: d3.ScaleLinear<number, number, never>,
@@ -181,59 +181,61 @@ const drawBase = (
       );
     })
     .forEach((d) => {
-      context.beginPath();
-      context.strokeStyle = getColor(d);
-      context.moveTo(
+      ctx.beginPath();
+      ctx.strokeStyle = getColor(d);
+      ctx.moveTo(
         xScale(Date.parse(d.candle_date_time_kst)) - width / 2,
         yScale(d.opening_price)
       );
-      context.lineTo(
+      ctx.lineTo(
         xScale(Date.parse(d.candle_date_time_kst)) + width / 2,
         yScale(d.opening_price)
       );
-      context.stroke();
+      ctx.stroke();
     });
 };
 
-const startClip = (context: CanvasRenderingContext2D) => {
-  context.save();
-  context.beginPath();
-  context.rect(
+const startClip = (ctx: CanvasRenderingContext2D) => {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(
     CANVAS_SIZE.left,
     CANVAS_SIZE.top,
     CANVAS_SIZE.width - CANVAS_SIZE.right - CANVAS_SIZE.left,
     CANVAS_SIZE.height - CANVAS_SIZE.bottom - CANVAS_SIZE.top
   );
-  context.clip();
+  ctx.clip();
 };
 
-const stopClip = (context: CanvasRenderingContext2D) => context.restore();
+const stopClip = (ctx: CanvasRenderingContext2D) => ctx.restore();
 
 /*
  * Component
  */
 function Chart({ candles, onLeft, time }: ChartProps) {
+  const tooltipCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const screenRef = useRef<HTMLCanvasElement | null>(null);
   const [xScale, setXScale] = useState<d3.ScaleTime<number, number, never>>(
     () => initXScale()
   );
 
   const handleLeft = useMemo(() => throttle(onLeft, 300), [onLeft]);
 
-  // initial draw
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (
+      !canvasRef.current ||
+      !tooltipCanvasRef.current ||
+      !screenRef.current ||
+      !xScale
+    )
+      return;
+    const screen = d3.select(screenRef.current);
     const canvas = d3.select(canvasRef.current);
-
-    canvas.attr("width", CANVAS_SIZE.width).attr("height", CANVAS_SIZE.height);
-  }, []);
-
-  // subsequent draw
-  useEffect(() => {
-    if (!canvasRef.current || !xScale) return;
-    const canvas = d3.select(canvasRef.current);
-    const context = canvas.node()?.getContext("2d");
-    if (!context) return;
+    const tooltipCanvas = d3.select(tooltipCanvasRef.current);
+    const ctx = canvas.node()?.getContext("2d");
+    const tooltipCtx = tooltipCanvas.node()?.getContext("2d");
+    if (!ctx || !tooltipCtx) return;
 
     // x-axis
     const xTicks = xScale.ticks(d3.timeMinute.every(1) as d3.TimeInterval);
@@ -250,34 +252,29 @@ function Chart({ candles, onLeft, time }: ChartProps) {
       ])
       .range([CANVAS_SIZE.height - CANVAS_SIZE.bottom, CANVAS_SIZE.top]);
 
-    drawXaxis(context, xScale, CANVAS_SIZE.height - CANVAS_SIZE.bottom, [
+    drawXaxis(ctx, xScale, CANVAS_SIZE.height - CANVAS_SIZE.bottom, [
       CANVAS_SIZE.left,
       CANVAS_SIZE.width - CANVAS_SIZE.right,
     ]);
 
-    drawYaxis(context, yScale, CANVAS_SIZE.left, [
+    drawYaxis(ctx, yScale, CANVAS_SIZE.left, [
       CANVAS_SIZE.top,
       CANVAS_SIZE.height - CANVAS_SIZE.bottom,
     ]);
 
-    startClip(context);
-    drawTail(context, candles, xScale, yScale);
-    drawBar(context, candles, xScale, yScale, width);
-    drawBase(context, candles, xScale, yScale, width);
-    stopClip(context);
+    startClip(ctx);
+    drawTail(ctx, candles, xScale, yScale);
+    drawBar(ctx, candles, xScale, yScale, width);
+    drawBase(ctx, candles, xScale, yScale, width);
+    stopClip(ctx);
 
     // zoom
-    canvas.call(
+    screen.call(
       d3
         .zoom<HTMLCanvasElement, unknown>()
         .scaleExtent([0.025, 4])
         .on("zoom", (e: d3.D3ZoomEvent<HTMLCanvasElement, unknown>) => {
           const xRescale = e.transform.rescaleX(initXScale());
-
-          context.save();
-          context.translate(e.transform.x, e.transform.y);
-          context.scale(e.transform.k, e.transform.k);
-          context.restore();
 
           if (
             xRescale(moment(time.start).subtract(1, "minutes")) >
@@ -289,15 +286,85 @@ function Chart({ candles, onLeft, time }: ChartProps) {
         })
     );
 
-    canvas.on("mouseover", (e: MouseEvent) => {
-      xScale.invert(e.offsetX);
+    screen.on("mousemove", (e: MouseEvent) => {
+      const snapTime = d3.timeMinute.round(xScale.invert(e.offsetX));
+      const snapX = xScale(snapTime);
+
+      tooltipCtx.clearRect(0, 0, CANVAS_SIZE.width, CANVAS_SIZE.height);
+
+      tooltipCtx.save();
+      if (
+        e.offsetX > CANVAS_SIZE.left &&
+        e.offsetX < CANVAS_SIZE.width - CANVAS_SIZE.right
+      ) {
+        tooltipCtx.fillStyle = "#3c3c3cc0";
+        tooltipCtx.beginPath();
+        tooltipCtx.fillRect(
+          snapX - 70,
+          CANVAS_SIZE.height - CANVAS_SIZE.bottom,
+          140,
+          25
+        );
+
+        tooltipCtx.fillStyle = "white";
+        tooltipCtx.beginPath();
+        tooltipCtx.fillText(
+          snapTime.toISOString(),
+          snapX - 60,
+          CANVAS_SIZE.height - CANVAS_SIZE.bottom + 16
+        );
+
+        tooltipCtx.setLineDash([5, 5]);
+        tooltipCtx.strokeStyle = "#3c3c3c60";
+        tooltipCtx.beginPath();
+        tooltipCtx.moveTo(snapX, CANVAS_SIZE.top);
+        tooltipCtx.lineTo(snapX, CANVAS_SIZE.height - CANVAS_SIZE.bottom);
+        tooltipCtx.stroke();
+
+        tooltipCtx.beginPath();
+        tooltipCtx.moveTo(CANVAS_SIZE.left, e.offsetY);
+        tooltipCtx.lineTo(CANVAS_SIZE.width - CANVAS_SIZE.right, e.offsetY);
+        tooltipCtx.stroke();
+      }
+      tooltipCtx.restore();
     });
+
     return () => {
-      context.clearRect(0, 0, CANVAS_SIZE.width, CANVAS_SIZE.height);
+      ctx.clearRect(0, 0, CANVAS_SIZE.width, CANVAS_SIZE.height);
     };
   }, [candles, handleLeft, xScale, time]);
 
-  return <canvas ref={canvasRef} />;
+  return (
+    <div style={{ position: "relative", height: "800px", width: "100%" }}>
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_SIZE.width}
+        height={CANVAS_SIZE.height}
+        style={{
+          position: "absolute",
+          left: 0,
+        }}
+      />
+      <canvas
+        ref={tooltipCanvasRef}
+        width={CANVAS_SIZE.width}
+        height={CANVAS_SIZE.height}
+        style={{
+          position: "absolute",
+          left: 0,
+        }}
+      />
+      <canvas
+        ref={screenRef}
+        width={CANVAS_SIZE.width}
+        height={CANVAS_SIZE.height}
+        style={{
+          position: "absolute",
+          left: 0,
+        }}
+      />
+    </div>
+  );
 }
 
 export default Chart;

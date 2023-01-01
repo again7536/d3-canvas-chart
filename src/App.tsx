@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from "react";
 import logo from "./logo.svg";
-import "./App.css";
 import useWebSocket from "./hooks/useWebSocket";
 import { StoreContext } from "./store";
 import Chart from "./components/Chart/Chart";
@@ -34,23 +33,17 @@ const App = observer(() => {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <select onChange={handleSelect}>
-          <option value="KRW-BTC">BTC</option>
-          <option value="KRW-ETH">ETH</option>
-        </select>
-        {stockStore.candles.size > 0 && (
-          <Chart
-            candles={stockStore.candles}
-            onLeft={stockStore.fetchCandlesToFront}
-            time={{ start: stockStore.startTime, end: stockStore.endTime }}
-          />
-        )}
-      </header>
+      <select onChange={handleSelect}>
+        <option value="KRW-BTC">BTC</option>
+        <option value="KRW-ETH">ETH</option>
+      </select>
+      {stockStore.candles.size > 0 && (
+        <Chart
+          candles={stockStore.candles}
+          onLeft={stockStore.fetchCandlesToFront}
+          time={{ start: stockStore.startTime, end: stockStore.endTime }}
+        />
+      )}
     </div>
   );
 });
