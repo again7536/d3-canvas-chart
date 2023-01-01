@@ -15,7 +15,14 @@ class StockStore {
   unit: number = 0;
   market: string = "";
   trades: Trade[] = [];
-  candles: Candle[] = [];
+  candles: Map<string, Candle> = new Map();
+  startTime: string = moment(moment.now())
+    .subtract(10, "minute")
+    .startOf("minute")
+    .format("YYYY-MM-DD[T]HH:mm:ss");
+  endTime: string = moment(moment.now())
+    .startOf("minute")
+    .format("YYYY-MM-DD[T]HH:mm:ss");
   fetchCandleState: boolean = false;
 
   constructor(rootStore: RootStore) {
@@ -29,17 +36,15 @@ class StockStore {
 
   addTradeToCandle(trade: Trade) {
     if (
-      this.candles.length > 0 &&
+      this.candles.size > 0 &&
       moment(trade.trade_timestamp).diff(
-        moment(this.candles[this.candles.length - 1].candle_date_time_kst).add(
-          1,
-          "minutes"
-        )
+        moment(this.endTime).add(1, "minutes")
       ) <= 0
     ) {
-      const newCandles = [...this.candles];
-      const prev = newCandles[newCandles.length - 1];
-      newCandles[newCandles.length - 1] = {
+      // mutable
+      const prev = this.candles.get(this.endTime);
+      if (!prev) return;
+      this.candles.set(this.endTime, {
         ...prev,
         timestamp: trade.trade_timestamp,
         trade_price: trade.trade_price,
@@ -47,42 +52,44 @@ class StockStore {
         low_price: Math.min(prev.low_price, trade.trade_price),
         candle_acc_trade_volume:
           prev.candle_acc_trade_volume + trade.trade_volume,
-      };
+      });
+    } else {
+      const nextEndTime = moment(this.endTime)
+        .add(1, "minutes")
+        .format("YYYY-MM-DD[T]HH:mm:ss");
 
-      this.candles = newCandles;
-    } else
-      this.candles = [
-        ...this.candles,
-        {
-          market: this.market,
-          candle_date_time_utc: (() => {
-            const time = moment(trade.trade_timestamp).startOf("minutes");
-            const remainder = time.minutes() % this.unit;
-            return time
-              .subtract(remainder, "minutes")
-              .utc()
-              .format("YYYY-MM-DD[T]HH:mm:ss");
-          })(),
-          candle_date_time_kst: (() => {
-            const time = moment(trade.trade_timestamp).startOf("minutes");
-            const remainder = time.minutes() % this.unit;
-            return time
-              .subtract(remainder, "minutes")
-              .local()
-              .format("YYYY-MM-DD[T]HH:mm:ss");
-          })(),
-          timestamp: trade.trade_timestamp,
-          trade_price: trade.trade_price,
-          high_price: trade.trade_price,
-          low_price: trade.trade_price,
-          opening_price:
-            this.candles[this.candles.length - 1]?.trade_price ??
-            trade.trade_price,
-          unit: this.unit,
-          candle_acc_trade_price: trade.trade_price,
-          candle_acc_trade_volume: trade.trade_volume,
-        },
-      ];
+      // mutable
+      this.candles.set(nextEndTime, {
+        market: this.market,
+        candle_date_time_utc: (() => {
+          const time = moment(trade.trade_timestamp).startOf("minutes");
+          const remainder = time.minutes() % this.unit;
+          return time
+            .subtract(remainder, "minutes")
+            .utc()
+            .format("YYYY-MM-DD[T]HH:mm:ss");
+        })(),
+        candle_date_time_kst: (() => {
+          const time = moment(trade.trade_timestamp).startOf("minutes");
+          const remainder = time.minutes() % this.unit;
+          return time
+            .subtract(remainder, "minutes")
+            .local()
+            .format("YYYY-MM-DD[T]HH:mm:ss");
+        })(),
+        timestamp: trade.trade_timestamp,
+        trade_price: trade.trade_price,
+        high_price: trade.trade_price,
+        low_price: trade.trade_price,
+        opening_price:
+          this.candles.get(this.endTime)?.trade_price ?? trade.trade_price,
+        unit: this.unit,
+        candle_acc_trade_price: trade.trade_price,
+        candle_acc_trade_volume: trade.trade_volume,
+      });
+
+      this.endTime = nextEndTime;
+    }
   }
 
   *fetchInitCandles(
@@ -92,11 +99,7 @@ class StockStore {
     this.market = params.market;
 
     const data = yield fetchCandles(params);
-    this.candles = data.sort(
-      (d1, d2) =>
-        Date.parse(d1.candle_date_time_kst) -
-        Date.parse(d2.candle_date_time_kst)
-    );
+    this.candles = new Map(data.map((d) => [d.candle_date_time_kst, d]));
   }
 
   *fetchCandlesToFront(): Generator<Promise<Candle[]>, void, Candle[]> {
@@ -108,19 +111,20 @@ class StockStore {
       count: 200,
       market: this.market,
       unit: this.unit,
-      to: moment(this.candles[0].candle_date_time_utc)
+      to: moment(this.startTime)
         .subtract(1, "minutes")
+        .utc()
         .format("YYYY-MM-DD[T]HH:mm:ss[Z]"),
     });
 
-    this.candles = [
-      ...data.sort(
-        (d1, d2) =>
-          Date.parse(d1.candle_date_time_kst) -
-          Date.parse(d2.candle_date_time_kst)
-      ),
-      ...this.candles,
-    ];
+    this.candles = new Map(
+      [...this.candles.entries()].concat(
+        data.map((d) => [d.candle_date_time_kst, d] as [string, Candle])
+      )
+    );
+    this.startTime = moment(this.startTime)
+      .subtract(200, "minutes")
+      .format("YYYY-MM-DD[T]HH:mm:ss");
     this.fetchCandleState = false;
   }
 }

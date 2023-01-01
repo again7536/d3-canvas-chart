@@ -43,10 +43,11 @@ const App = observer(() => {
           <option value="KRW-BTC">BTC</option>
           <option value="KRW-ETH">ETH</option>
         </select>
-        {stockStore.candles.length > 0 && (
+        {stockStore.candles.size > 0 && (
           <Chart
             candles={stockStore.candles}
             onLeft={stockStore.fetchCandlesToFront}
+            time={{ start: stockStore.startTime, end: stockStore.endTime }}
           />
         )}
       </header>

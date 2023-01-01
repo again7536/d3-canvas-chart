@@ -19,8 +19,9 @@ const TICK_COUNT_X = 5;
 const TICK_COUNT_Y = 8;
 
 interface ChartProps {
-  candles: Candle[];
+  candles: Map<string, Candle>;
   onLeft: () => void;
+  time: { start: string; end: string };
 }
 
 // utils
@@ -109,11 +110,11 @@ const drawYaxis = (
 
 const drawTail = (
   context: CanvasRenderingContext2D,
-  candles: Candle[],
+  candles: Map<string, Candle>,
   xScale: d3.ScaleTime<number, number, never>,
   yScale: d3.ScaleLinear<number, number, never>
 ) => {
-  candles
+  [...candles.values()]
     .filter((d) => {
       const x = xScale(Date.parse(d.candle_date_time_kst));
       return !(
@@ -137,12 +138,12 @@ const drawTail = (
 
 const drawBar = (
   context: CanvasRenderingContext2D,
-  candles: Candle[],
+  candles: Map<string, Candle>,
   xScale: d3.ScaleTime<number, number, never>,
   yScale: d3.ScaleLinear<number, number, never>,
   width: number
 ) => {
-  candles
+  [...candles.values()]
     .filter((d) => {
       const x1 = xScale(Date.parse(d.candle_date_time_kst)) - width / 2;
       const x2 = xScale(Date.parse(d.candle_date_time_kst)) + width / 2;
@@ -166,12 +167,12 @@ const drawBar = (
 
 const drawBase = (
   context: CanvasRenderingContext2D,
-  candles: Candle[],
+  candles: Map<string, Candle>,
   xScale: d3.ScaleTime<number, number, never>,
   yScale: d3.ScaleLinear<number, number, never>,
   width: number
 ) => {
-  candles
+  [...candles.values()]
     .filter((d) => {
       const x1 = xScale(Date.parse(d.candle_date_time_kst)) - width / 2;
       const x2 = xScale(Date.parse(d.candle_date_time_kst)) + width / 2;
@@ -211,7 +212,7 @@ const stopClip = (context: CanvasRenderingContext2D) => context.restore();
 /*
  * Component
  */
-function Chart({ candles, onLeft }: ChartProps) {
+function Chart({ candles, onLeft, time }: ChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [xScale, setXScale] = useState<d3.ScaleTime<number, number, never>>(
     () => initXScale()
@@ -244,8 +245,8 @@ function Chart({ candles, onLeft }: ChartProps) {
     const yScale = d3
       .scaleLinear()
       .domain([
-        d3.min(candles, (candle) => candle.trade_price) ?? 0,
-        d3.max(candles, (candle) => candle.trade_price) ?? 0,
+        d3.min(candles, (candle) => candle[1].trade_price) ?? 0,
+        d3.max(candles, (candle) => candle[1].trade_price) ?? 0,
       ])
       .range([CANVAS_SIZE.height - CANVAS_SIZE.bottom, CANVAS_SIZE.top]);
 
@@ -279,19 +280,22 @@ function Chart({ candles, onLeft }: ChartProps) {
           context.restore();
 
           if (
-            xRescale(
-              moment(candles[0].candle_date_time_kst).subtract(1, "minutes")
-            ) > CANVAS_SIZE.left
+            xRescale(moment(time.start).subtract(1, "minutes")) >
+            CANVAS_SIZE.left
           )
             handleLeft();
 
           setXScale(() => e.transform.rescaleX(initXScale()));
         })
     );
+
+    canvas.on("mouseover", (e: MouseEvent) => {
+      xScale.invert(e.offsetX);
+    });
     return () => {
       context.clearRect(0, 0, CANVAS_SIZE.width, CANVAS_SIZE.height);
     };
-  }, [candles, handleLeft, xScale]);
+  }, [candles, handleLeft, xScale, time]);
 
   return <canvas ref={canvasRef} />;
 }
