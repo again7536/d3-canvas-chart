@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import { Candle } from "../../types";
 import moment from "moment";
 import * as d3 from "d3";
+import { throttle } from "lodash";
 
-const SVG_SIZE = {
+const CANVAS_SIZE = {
   width: 700,
   height: 500,
   left: 80,
@@ -12,69 +13,232 @@ const SVG_SIZE = {
   bottom: 40,
 };
 
+const TICK_SIZE = 6;
+const TICK_PADDING = 3;
+const TICK_COUNT_X = 5;
+const TICK_COUNT_Y = 8;
+
 interface ChartProps {
   candles: Candle[];
+  onLeft: () => void;
 }
 
-function Chart({ candles }: ChartProps) {
-  const svgRef = useRef<SVGSVGElement | null>(null);
+// utils
+const getColor = (d: Candle) =>
+  d.opening_price <= d.trade_price ? "#c84a31" : "#1261c4";
+
+const initXScale = () => {
+  return d3
+    .scaleTime()
+    .domain([
+      moment(moment.now()).subtract(12, "minutes").toDate(),
+      moment(moment.now()).add(6, "minutes").toDate(),
+    ])
+    .range([CANVAS_SIZE.left, CANVAS_SIZE.width - CANVAS_SIZE.right]);
+};
+
+const drawXaxis = (
+  context: CanvasRenderingContext2D,
+  xScale: d3.ScaleTime<number, number, never>,
+  Y: number,
+  xExtent: [number, number]
+) => {
+  const [startX, endX] = xExtent;
+  const xTicks = xScale.ticks(TICK_COUNT_X), // You may choose tick counts. ex: xScale.ticks(20)
+    xTickFormat = xScale.tickFormat(); // you may choose the format. ex: xScale.tickFormat(tickCount, ".0s")
+
+  context.strokeStyle = "black";
+
+  context.beginPath();
+  xTicks.forEach((d) => {
+    context.moveTo(xScale(d), Y);
+    context.lineTo(xScale(d), Y + TICK_SIZE);
+  });
+  context.stroke();
+
+  context.beginPath();
+  context.moveTo(startX, Y + TICK_SIZE);
+  context.lineTo(startX, Y);
+  context.lineTo(endX, Y);
+  context.lineTo(endX, Y + TICK_SIZE);
+  context.stroke();
+
+  context.textAlign = "center";
+  context.textBaseline = "top";
+  context.fillStyle = "black";
+  xTicks.forEach((d) => {
+    context.beginPath();
+    context.fillText(xTickFormat(d), xScale(d), Y + TICK_SIZE);
+  });
+};
+
+const drawYaxis = (
+  context: CanvasRenderingContext2D,
+  yScale: d3.ScaleLinear<number, number, never>,
+  X: number,
+  yExtent: [number, number]
+) => {
+  const [startY, endY] = yExtent;
+
+  const yTicks = yScale.ticks(TICK_COUNT_Y),
+    yTickFormat = yScale.tickFormat();
+
+  context.strokeStyle = "black";
+  context.beginPath();
+  yTicks.forEach((d) => {
+    context.moveTo(X, yScale(d));
+    context.lineTo(X - TICK_SIZE, yScale(d));
+  });
+  context.stroke();
+
+  context.beginPath();
+  context.moveTo(X - TICK_SIZE, startY);
+  context.lineTo(X, startY);
+  context.lineTo(X, endY);
+  context.lineTo(X - TICK_SIZE, endY);
+  context.stroke();
+
+  context.textAlign = "right";
+  context.textBaseline = "middle";
+  context.fillStyle = "black";
+  yTicks.forEach((d) => {
+    context.beginPath();
+    context.fillText(yTickFormat(d), X - TICK_SIZE - TICK_PADDING, yScale(d));
+  });
+};
+
+const drawTail = (
+  context: CanvasRenderingContext2D,
+  candles: Candle[],
+  xScale: d3.ScaleTime<number, number, never>,
+  yScale: d3.ScaleLinear<number, number, never>
+) => {
+  candles
+    .filter((d) => {
+      const x = xScale(Date.parse(d.candle_date_time_kst));
+      return !(
+        x < CANVAS_SIZE.left || x > CANVAS_SIZE.width - CANVAS_SIZE.right
+      );
+    })
+    .forEach((d) => {
+      context.beginPath();
+      context.strokeStyle = getColor(d);
+      context.moveTo(
+        xScale(Date.parse(d.candle_date_time_kst)),
+        yScale(d.high_price)
+      );
+      context.lineTo(
+        xScale(Date.parse(d.candle_date_time_kst)),
+        yScale(d.low_price)
+      );
+      context.stroke();
+    });
+};
+
+const drawBar = (
+  context: CanvasRenderingContext2D,
+  candles: Candle[],
+  xScale: d3.ScaleTime<number, number, never>,
+  yScale: d3.ScaleLinear<number, number, never>,
+  width: number
+) => {
+  candles
+    .filter((d) => {
+      const x1 = xScale(Date.parse(d.candle_date_time_kst)) - width / 2;
+      const x2 = xScale(Date.parse(d.candle_date_time_kst)) + width / 2;
+      return !(
+        x2 < CANVAS_SIZE.left || x1 > CANVAS_SIZE.width - CANVAS_SIZE.right
+      );
+    })
+    .forEach((d) => {
+      context.beginPath();
+      context.fillStyle = getColor(d);
+      context.fillRect(
+        xScale(Date.parse(d.candle_date_time_kst)) - width / 2,
+        yScale(Math.max(d.opening_price, d.trade_price)),
+        width,
+        yScale(Math.min(d.opening_price, d.trade_price)) -
+          yScale(Math.max(d.opening_price, d.trade_price))
+      );
+      context.stroke();
+    });
+};
+
+const drawBase = (
+  context: CanvasRenderingContext2D,
+  candles: Candle[],
+  xScale: d3.ScaleTime<number, number, never>,
+  yScale: d3.ScaleLinear<number, number, never>,
+  width: number
+) => {
+  candles
+    .filter((d) => {
+      const x1 = xScale(Date.parse(d.candle_date_time_kst)) - width / 2;
+      const x2 = xScale(Date.parse(d.candle_date_time_kst)) + width / 2;
+      return !(
+        x2 < CANVAS_SIZE.left || x1 > CANVAS_SIZE.width - CANVAS_SIZE.right
+      );
+    })
+    .forEach((d) => {
+      context.beginPath();
+      context.strokeStyle = getColor(d);
+      context.moveTo(
+        xScale(Date.parse(d.candle_date_time_kst)) - width / 2,
+        yScale(d.opening_price)
+      );
+      context.lineTo(
+        xScale(Date.parse(d.candle_date_time_kst)) + width / 2,
+        yScale(d.opening_price)
+      );
+      context.stroke();
+    });
+};
+
+const startClip = (context: CanvasRenderingContext2D) => {
+  context.save();
+  context.beginPath();
+  context.rect(
+    CANVAS_SIZE.left,
+    CANVAS_SIZE.top,
+    CANVAS_SIZE.width - CANVAS_SIZE.right - CANVAS_SIZE.left,
+    CANVAS_SIZE.height - CANVAS_SIZE.bottom - CANVAS_SIZE.top
+  );
+  context.clip();
+};
+
+const stopClip = (context: CanvasRenderingContext2D) => context.restore();
+
+/*
+ * Component
+ */
+function Chart({ candles, onLeft }: ChartProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [xScale, setXScale] = useState<d3.ScaleTime<number, number, never>>(
+    () => initXScale()
+  );
+
+  const handleLeft = useMemo(() => throttle(onLeft, 300), [onLeft]);
 
   // initial draw
   useEffect(() => {
-    if (!svgRef.current) return;
-    const $svg = d3.select(svgRef.current);
+    if (!canvasRef.current) return;
+    const canvas = d3.select(canvasRef.current);
 
-    $svg.attr("width", SVG_SIZE.width).attr("height", SVG_SIZE.height);
-
-    $svg
-      .append("g")
-      .attr("id", "x-axis")
-      .attr("transform", `translate(0, ${SVG_SIZE.height - SVG_SIZE.bottom})`);
-
-    $svg
-      .append("g")
-      .attr("id", "y-axis")
-      .attr("transform", `translate(${SVG_SIZE.left}, 0)`);
-
-    $svg
-      .append("clipPath")
-      .attr("id", "clip")
-      .append("rect")
-      .attr("fill", "transparent")
-      .attr("x", SVG_SIZE.left)
-      .attr("y", SVG_SIZE.top)
-      .attr("width", SVG_SIZE.width - SVG_SIZE.left - SVG_SIZE.right)
-      .attr("height", SVG_SIZE.height - SVG_SIZE.top - SVG_SIZE.bottom);
-
-    $svg.append("g").attr("id", "chart").attr("clip-path", "url(#clip)");
+    canvas.attr("width", CANVAS_SIZE.width).attr("height", CANVAS_SIZE.height);
   }, []);
 
   // subsequent draw
   useEffect(() => {
-    if (!svgRef.current) return;
-    const $svg = d3.select(svgRef.current);
+    if (!canvasRef.current || !xScale) return;
+    const canvas = d3.select(canvasRef.current);
+    const context = canvas.node()?.getContext("2d");
+    if (!context) return;
 
     // x-axis
-    const xScale = d3
-      .scaleTime()
-      .domain([
-        d3.timeMinute.offset(
-          moment(candles[0]?.candle_date_time_kst ?? new Date()).toDate(),
-          -1
-        ),
-        d3.timeMinute.offset(
-          moment(
-            candles[candles.length - 1]?.candle_date_time_kst ?? new Date()
-          ).toDate(),
-          1
-        ),
-      ])
-      .range([SVG_SIZE.left, SVG_SIZE.width - SVG_SIZE.right]);
-    const xAxis = d3.axisBottom(xScale);
     const xTicks = xScale.ticks(d3.timeMinute.every(1) as d3.TimeInterval);
     const width = xTicks[1]
       ? xScale(xTicks[1]) - xScale(xTicks[0])
-      : SVG_SIZE.width - SVG_SIZE.left - SVG_SIZE.right;
+      : CANVAS_SIZE.width - CANVAS_SIZE.left - CANVAS_SIZE.right;
 
     // y-axis
     const yScale = d3
@@ -83,130 +247,53 @@ function Chart({ candles }: ChartProps) {
         d3.min(candles, (candle) => candle.trade_price) ?? 0,
         d3.max(candles, (candle) => candle.trade_price) ?? 0,
       ])
-      .range([SVG_SIZE.height - SVG_SIZE.bottom, SVG_SIZE.top]);
-    const yAxis = d3.axisLeft(yScale);
+      .range([CANVAS_SIZE.height - CANVAS_SIZE.bottom, CANVAS_SIZE.top]);
 
-    $svg.select<SVGGElement>("#x-axis").call(xAxis);
-    $svg.select<SVGGElement>("#y-axis").call(yAxis);
+    drawXaxis(context, xScale, CANVAS_SIZE.height - CANVAS_SIZE.bottom, [
+      CANVAS_SIZE.left,
+      CANVAS_SIZE.width - CANVAS_SIZE.right,
+    ]);
 
-    // utils
-    const getColor = (d: Candle) =>
-      d.opening_price <= d.trade_price ? "#c84a31" : "#1261c4";
+    drawYaxis(context, yScale, CANVAS_SIZE.left, [
+      CANVAS_SIZE.top,
+      CANVAS_SIZE.height - CANVAS_SIZE.bottom,
+    ]);
 
-    // lines
-    $svg
-      .select("#chart")
-      .selectAll(".tail")
-      .data(candles)
-      .join(
-        ($enter) =>
-          $enter
-            .append("line")
-            .attr("class", "tail")
-            .attr("y1", (d) => yScale(d.high_price))
-            .attr("y2", (d) => yScale(d.low_price))
-            .attr("x1", 0)
-            .attr("x2", 0)
-            .attr(
-              "transform",
-              (d) => `translate(${xScale(moment(d.candle_date_time_kst))}, 0)`
-            )
-            .style("stroke", (d) => getColor(d)),
-        ($update) =>
-          $update
-            .attr("y1", (d) => yScale(d.high_price))
-            .attr("y2", (d) => yScale(d.low_price))
-            .attr("x1", 0)
-            .attr("x2", 0)
-            .attr(
-              "transform",
-              (d) => `translate(${xScale(moment(d.candle_date_time_kst))}, 0)`
-            )
-            .style("stroke", (d) => getColor(d)),
-        ($exit) => $exit.remove()
-      );
+    startClip(context);
+    drawTail(context, candles, xScale, yScale);
+    drawBar(context, candles, xScale, yScale, width);
+    drawBase(context, candles, xScale, yScale, width);
+    stopClip(context);
 
-    //opening line
-    $svg
-      .select("#chart")
-      .selectAll(".base")
-      .data(candles)
-      .join(
-        ($enter) =>
-          $enter
-            .append("line")
-            .attr("class", "base")
-            .attr("x1", -width / 2)
-            .attr("x2", width / 2)
-            .attr(
-              "transform",
-              (d) =>
-                `translate(${xScale(moment(d.candle_date_time_kst))},
-                  ${yScale(d.opening_price)}
-                )`
-            )
-            .style("stroke", (d) => getColor(d)),
-        ($update) =>
-          $update
-            .attr("x1", -width / 2)
-            .attr("x2", width / 2)
-            .attr(
-              "transform",
-              (d) =>
-                `translate(${xScale(moment(d.candle_date_time_kst))},
-                  ${yScale(d.opening_price)}
-                )`
-            )
-            .style("stroke", (d) => getColor(d)),
-        ($exit) => $exit.remove()
-      );
+    // zoom
+    canvas.call(
+      d3
+        .zoom<HTMLCanvasElement, unknown>()
+        .scaleExtent([0.025, 4])
+        .on("zoom", (e: d3.D3ZoomEvent<HTMLCanvasElement, unknown>) => {
+          const xRescale = e.transform.rescaleX(initXScale());
 
-    // rects
-    $svg
-      .select("#chart")
-      .selectAll("rect")
-      .data(candles)
-      .join(
-        ($enter) =>
-          $enter
-            .append("rect")
-            .attr(
-              "height",
-              (d) =>
-                yScale(Math.min(d.opening_price, d.trade_price)) -
-                yScale(Math.max(d.opening_price, d.trade_price))
-            )
-            .attr("width", width)
-            .attr(
-              "transform",
-              (d) =>
-                `translate(${
-                  xScale(moment(d.candle_date_time_kst)) - width / 2
-                }, ${yScale(Math.max(d.opening_price, d.trade_price))})`
-            )
-            .style("fill", (d) => getColor(d)),
-        ($update) =>
-          $update
-            .attr(
-              "height",
-              (d) =>
-                yScale(Math.min(d.opening_price, d.trade_price)) -
-                yScale(Math.max(d.opening_price, d.trade_price))
-            )
-            .attr("width", width)
-            .attr(
-              "transform",
-              (d) =>
-                `translate(${
-                  xScale(moment(d.candle_date_time_kst)) - width / 2
-                }, ${yScale(Math.max(d.opening_price, d.trade_price))})`
-            )
-            .style("fill", (d) => getColor(d)),
-        ($exit) => $exit.remove()
-      );
-  }, [candles]);
+          context.save();
+          context.translate(e.transform.x, e.transform.y);
+          context.scale(e.transform.k, e.transform.k);
+          context.restore();
 
-  return <svg ref={svgRef} />;
+          if (
+            xRescale(
+              moment(candles[0].candle_date_time_kst).subtract(1, "minutes")
+            ) > CANVAS_SIZE.left
+          )
+            handleLeft();
+
+          setXScale(() => e.transform.rescaleX(initXScale()));
+        })
+    );
+    return () => {
+      context.clearRect(0, 0, CANVAS_SIZE.width, CANVAS_SIZE.height);
+    };
+  }, [candles, handleLeft, xScale]);
+
+  return <canvas ref={canvasRef} />;
 }
 
 export default Chart;

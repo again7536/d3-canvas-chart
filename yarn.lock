@@ -3039,6 +3039,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/lodash@npm:^4.14.191":
+  version: 4.14.191
+  resolution: "@types/lodash@npm:4.14.191"
+  checksum: ba0d5434e10690869f32d5ea49095250157cae502f10d57de0a723fd72229ce6c6a4979576f0f13e0aa9fbe3ce2457bfb9fa7d4ec3d6daba56730a51906d1491
+  languageName: node
+  linkType: hard
+
 "@types/mime@npm:*":
   version: 3.0.1
   resolution: "@types/mime@npm:3.0.1"
@@ -12183,6 +12190,7 @@ __metadata:
     "@types/axios": ^0.14.0
     "@types/d3": ^7.4.0
     "@types/jest": ^27.0.1
+    "@types/lodash": ^4.14.191
     "@types/moment": ^2.13.0
     "@types/node": ^16.7.13
     "@types/numeral": ^2.0.2
@@ -12191,6 +12199,7 @@ __metadata:
     axios: ^1.2.2
     d3: ^7.8.0
     immer: ^9.0.16
+    lodash: ^4.17.21
     mobx: ^6.7.0
     mobx-react-lite: ^3.4.0
     moment: ^2.29.4
